@@ -1,0 +1,11 @@
+# dsh-cost bundle patch
+#
+# Applied as a profile bundle layer (through the `dsh.bundle.patch` manifest
+# field). It inserts the one Loader row that owns both halves: the Node half
+# (lib/index.js — the price table, its refresh route, and per-conversation spend
+# folded from the Session log) and the browser half (lib/client.js — the composer
+# pill, its breakdown panel and the settings page), which the client module
+# system discovers from `dsh.client` in package.json.
+- insert:
+    - id: dsh-cost
+      name: 'dsh-cost'

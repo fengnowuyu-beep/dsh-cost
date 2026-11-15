@@ -1,0 +1,49 @@
+{
+  "name": "dsh-cost",
+  "version": "1.0.0",
+  "description": "对话消费金额：输入框下方显示本对话（含全部子代理）按官方标价计算的金额与每条计费行明细，价格随插件附带并可从官方价格页刷新 · Per-conversation spend readout for DSH Desktop",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.0-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "icon.svg"
+  ],
+  "scripts": {
+    "test": "node test/host.test.mjs && node test/pricing.test.mjs && node test/cost.test.mjs && node test/client.test.mjs"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "cost",
+    "spend",
+    "pricing"
+  ],
+  "license": "MIT"
+}
