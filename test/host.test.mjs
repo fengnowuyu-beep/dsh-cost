@@ -143,7 +143,10 @@ async function harness(options = {}) {
       return { status: res.status, payload, headers: res.headers, response: res }
     },
     async dispose() {
-      await rm(home, { recursive: true, force: true })
+      // A background price refresh can still be writing `cost/prices.json` while
+      // the scratch directory is removed; on Windows that race surfaces as
+      // ENOTEMPTY, so the removal retries instead of failing the test.
+      await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
     }
   }
 }
@@ -282,6 +285,51 @@ test('the first run adopts the spend settings the combined plugin left behind', 
     ok(existsSync(join(home, 'cost', 'prices.json')), 'the cached price table moved too')
   } finally {
     await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('a conversation’s spend counts image money beside the token money', async () => {
+  const events = [
+    assistantMessage(0, { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }),
+    {
+      type: 'tool/call',
+      seq: 1,
+      time: Date.parse('2026-11-13T08:00:00Z'),
+      data: { turn: 1, step: 1, callId: 'call-image', name: 'generate_image', arguments: JSON.stringify({ size: '1024x1024' }) }
+    },
+    {
+      type: 'tool/result',
+      seq: 2,
+      time: Date.parse('2026-11-13T08:00:05Z'),
+      data: {
+        turn: 1,
+        step: 1,
+        toolCallId: 'call-image',
+        message: { content: [{ type: 'text', text: 'Generated one image with openai-compat/MiniMax-H3-Image (1024x1024).' }] }
+      }
+    }
+  ]
+  const sessions = new Map([['session-media', session(events, 'session-media')]])
+  const box = await harness({ sessions })
+  try {
+    const first = await box.call('cost.session', { sessionId: 'session-media' })
+    equal(first.status, 200)
+    const cost = first.payload.cost
+    equal(cost.media.imageCount, 1)
+    close(cost.mediaAmount, 0.1430, 1e-9)
+    close(cost.totalAmount, cost.amount + 0.1430, 1e-9)
+    equal(cost.includeMedia, true)
+    equal(cost.hasUsage, true)
+
+    // Switched off, the total drops back to the token money but the media
+    // section still reports what was billed.
+    await box.call('settings.update', { cost: { includeMedia: false } })
+    const second = await box.call('cost.session', { sessionId: 'session-media' })
+    equal(second.payload.cost.includeMedia, false)
+    close(second.payload.cost.totalAmount, second.payload.cost.amount, 1e-9)
+    equal(second.payload.cost.media.imageCount, 1)
+  } finally {
+    await box.dispose()
   }
 })
 

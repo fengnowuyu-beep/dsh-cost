@@ -121,6 +121,15 @@ function treeTitles(node) {
   return titles
 }
 
+/** The first element matching a predicate, or undefined. */
+function findElement(node, predicate) {
+  let found
+  walkTree(node, (element) => {
+    if (found === undefined && predicate(element)) found = element
+  })
+  return found
+}
+
 const reactShim = {
   default: {
     createElement,
@@ -334,6 +343,89 @@ test('the panel splits the total between the conversation and its subagents', as
   ok(text.includes(t('cost.subagentTotal')))
 })
 
+test('images and speech are two separate modules, each with its own heading', async () => {
+  const media = {
+    images: [{ model: 'MiniMax-H3-Image', count: 3, amount: 0.429, unpricedCount: 0 }],
+    imageCount: 3,
+    imageAmount: 0.429,
+    unpricedImages: 0,
+    speech: [{ model: 'paraformer-v2', runs: 1, seconds: 3600, amount: 0.288 }],
+    speechRuns: 1,
+    speechSeconds: 3600,
+    speechAmount: 0.288,
+    amount: 1.293,
+    hasAny: true,
+    workspaceSpeech: { files: 3, runs: 2, seconds: 7200, amount: 0.576, truncated: false }
+  }
+  const total = 1.876543 + media.amount
+  const { settled } = await renderPill({ report: pricedReport({ media, mediaAmount: media.amount, totalAmount: total }) })
+  const text = treeText(settled)
+  ok(text.includes(t('cost.mediaImages')), `the image module heading must be rendered (got: ${text})`)
+  ok(text.includes(t('cost.mediaSpeech')), 'the speech module heading must be rendered')
+  ok(text.includes('MiniMax-H3-Image'), 'the image model must be named')
+  ok(text.includes('paraformer-v2'), 'the speech model must be named')
+  ok(text.includes(internals.formatDuration(3600)), 'the speech duration must be shown')
+  ok(text.includes(t('cost.mediaWorkspace')), 'the workspace transcription line must be shown')
+  ok(text.includes(t('cost.estimateChip')), 'each estimated module carries its own chip')
+  ok(text.includes(t('cost.mediaEstimate')), 'and its own caveat')
+  ok(text.includes(t('cost.totalRow')), 'the speech module totals its two sources')
+  ok(text.includes(internals.formatMoney(total, 'CNY')), 'the pill headline must include the media money')
+})
+
+test('a scroll inside the panel never closes it, a page scroll re-anchors', () => {
+  const child = { kind: 'row' }
+  const node = { contains: target => target === child }
+  equal(internals.scrollInsidePanel(node, node), true, 'the panel scrolling itself must be ignored')
+  equal(internals.scrollInsidePanel(node, child), true, 'a scroll from a row inside the panel must be ignored')
+  equal(internals.scrollInsidePanel(node, { kind: 'page' }), false, 'the conversation scrolling must re-anchor')
+  equal(internals.scrollInsidePanel(null, { kind: 'page' }), false)
+
+  const viewport = { height: 800 }
+  equal(internals.anchorState({ top: 700, bottom: 720, width: 40, height: 20 }, viewport), 'visible')
+  equal(internals.anchorState({ top: -40, bottom: -20, width: 40, height: 20 }, viewport), 'gone', 'scrolled off the top')
+  equal(internals.anchorState({ top: 810, bottom: 830, width: 40, height: 20 }, viewport), 'gone', 'scrolled off the bottom')
+  equal(internals.anchorState({ top: 0, bottom: 0, width: 0, height: 0 }, viewport), 'hidden', 'a hidden anchor is not a gone one')
+})
+
+test('the composition bar splits the total by kind, and disappears when there is only one kind', async () => {
+  const mixed = renderComponent(internals.CompositionBar, {
+    t,
+    currency: 'CNY',
+    parts: [
+      { key: 'tokens', amount: 1.4421, label: 'Token 合计' },
+      { key: 'images', amount: 0.2877, label: '生图' }
+    ]
+  })
+  ok(mixed !== null, 'a conversation that spent on both tokens and images gets a bar')
+  const segments = Array.isArray(mixed.props.children) ? mixed.props.children : [mixed.props.children]
+  equal(segments.length, 2)
+  ok(String(segments[0].props.style.flex).startsWith('1.4421'), 'the first segment is the token money')
+  ok(String(segments[1].props.style.flex).startsWith('0.2877'), 'the second is the image money')
+  ok(String(segments[1].props.title).includes('¥0.288'), 'each segment explains itself on hover')
+  ok(String(mixed.props['aria-label']).includes('83%'), 'the bar announces the split for screen readers')
+
+  equal(renderComponent(internals.CompositionBar, {
+    t,
+    currency: 'CNY',
+    parts: [{ key: 'tokens', amount: 1.4421, label: 'Token 合计' }]
+  }), null, 'one kind of money is not a split')
+})
+
+test('the estimated group is tinted, not just tagged', () => {
+  const estimate = renderComponent(internals.PanelSection, {
+    title: '生图与语音',
+    chip: '估算',
+    tone: 'estimate'
+  })
+  equal(estimate.props['data-section-tone'], 'estimate')
+  ok(String(estimate.props.style.borderLeft).includes('#E8A33D'), 'and an accent bar in the warning hue')
+  ok(String(estimate.props.style.background).includes('rgba'), 'and a tint over the whole block')
+
+  const plain = renderComponent(internals.PanelSection, { title: '金额明细' })
+  equal(plain.props['data-section-tone'], 'default')
+  equal(plain.props.style.borderLeft, undefined, 'the other groups stay untinted')
+})
+
 test('the pill obeys both switches and the display currency', async () => {
   const off = await renderPill({ report: pricedReport(), snapshot: { enabled: false, cost: { currency: 'CNY', showInComposer: true } } })
   equal(off.settled, null, 'the enabled switch must hide it')
@@ -382,9 +474,9 @@ test('the panel opens toward the room that exists', () => {
   equal(top.top, 24)
   // A tall window gives the ideal height, a short one is capped by the room.
   const roomy = internals.computePanelPosition({ top: 700, bottom: 720, right: 300 }, viewport)
-  equal(roomy.maxHeight, 300)
+  equal(roomy.maxHeight, 420)
   const cramped = internals.computePanelPosition({ top: 160, bottom: 180, right: 300 }, viewport)
-  equal(cramped.maxHeight <= 300, true)
+  equal(cramped.maxHeight <= 420, true)
   equal(cramped.maxHeight >= 120, true)
   // Never further right than the window.
   equal(top.right >= 8, true)

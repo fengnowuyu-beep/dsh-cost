@@ -1,7 +1,7 @@
 {
   "name": "dsh-cost",
-  "version": "1.0.0",
-  "description": "对话消费金额：输入框下方显示本对话（含全部子代理）按官方标价计算的金额与每条计费行明细，价格随插件附带并可从官方价格页刷新 · Per-conversation spend readout for DSH Desktop",
+  "version": "1.1.0",
+  "description": "对话消费金额：输入框下方显示本对话（含全部子代理）的金额与明细，含生图与语音的估算话费 · Per-conversation spend readout for DSH Desktop, including image and speech spend",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -35,7 +35,7 @@
     "icon.svg"
   ],
   "scripts": {
-    "test": "node test/host.test.mjs && node test/pricing.test.mjs && node test/cost.test.mjs && node test/client.test.mjs"
+    "test": "node test/host.test.mjs && node test/pricing.test.mjs && node test/cost.test.mjs && node test/media.test.mjs && node test/client.test.mjs"
   },
   "keywords": [
     "dsh",
