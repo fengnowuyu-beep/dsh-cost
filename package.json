@@ -2,6 +2,10 @@
   "name": "dsh-cost",
   "version": "1.1.0",
   "description": "对话消费金额：输入框下方显示本对话（含全部子代理）的金额与明细，含生图与语音的估算话费 · Per-conversation spend readout for DSH Desktop, including image and speech spend",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fengnowuyu-beep/dsh-cost.git"
+  },
   "type": "module",
   "main": "lib/index.js",
   "exports": {
